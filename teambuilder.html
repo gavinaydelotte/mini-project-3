@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Team Builder – PokeTeam</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="index.html">&#9670; PokeTeam</a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="teambuilder.html">Team Builder</a></li>
+      <li><a href="opponent.html">Pick Opponent</a></li>
+      <li><a href="comparison.html">Matchup Analysis</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-title">Team Builder</div>
+  <div class="page-subtitle">Build a party of up to 6 Pokemon. Your team is saved automatically.</div>
+
+  <!-- Current Team -->
+  <div class="section-title">Your Party</div>
+  <div class="team-grid" id="team-grid">
+    <!-- Slots rendered by JS -->
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:30px;flex-wrap:wrap;">
+    <button class="btn btn-secondary" onclick="clearTeam()">&#10006; Clear Team</button>
+    <a href="opponent.html" class="btn btn-yellow" id="next-btn" style="display:none">Next: Pick Opponent &#8594;</a>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Search -->
+  <div class="section-title">Add a Pokemon</div>
+  <div class="search-wrap">
+    <input type="text" class="search-input" id="search-input"
+      placeholder="Search by name (e.g. charizard, garchomp)..." autocomplete="off">
+    <div class="autocomplete-list" id="auto-list"></div>
+  </div>
+
+  <!-- Preview card -->
+  <div id="preview-area"></div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  let previewData = null;
+
+  // ---- Render team grid ----
+  function renderTeam() {
+    const team = getMyTeam();
+    const grid = document.getElementById('team-grid');
+    grid.innerHTML = '';
+    for (let i = 0; i < 6; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'team-slot' + (team[i] ? ' filled' : '');
+      if (team[i]) {
+        fetchPokemon(team[i].name).then(d => {
+          slot.innerHTML = renderPokemonCard(d, team[i].level, true, i);
+        }).catch(() => {
+          slot.innerHTML = `<span class="empty-text">${team[i].name}</span>`;
+        });
+      } else {
+        slot.innerHTML = '<span class="empty-text">Empty</span>';
+      }
+      grid.appendChild(slot);
+    }
+    document.getElementById('next-btn').style.display = team.length > 0 ? 'inline-flex' : 'none';
+  }
+
+  window.removeFromTeam = function(idx) {
+    const team = getMyTeam();
+    team.splice(idx, 1);
+    saveMyTeam(team);
+    renderTeam();
+  };
+
+  function clearTeam() {
+    saveMyTeam([]);
+    renderTeam();
+  }
+
+  function addToTeam(name, level) {
+    const team = getMyTeam();
+    if (team.length >= 6) { showAlert('Your team is full! Remove a Pokemon first.', 'warn'); return; }
+    if (team.some(p => p.name === name)) { showAlert(`${name} is already on your team.`, 'warn'); return; }
+    team.push({ name, level: level || 50 });
+    saveMyTeam(team);
+    renderTeam();
+    showAlert(`${name} added to your team!`, 'success');
+  }
+
+  function showAlert(msg, type = 'info') {
+    const area = document.getElementById('preview-area');
+    const div = document.createElement('div');
+    div.className = `alert alert-${type}`;
+    div.textContent = msg;
+    area.prepend(div);
+    setTimeout(() => div.remove(), 3000);
+  }
+
+  // ---- Preview ----
+  async function showPreview(pkData) {
+    previewData = pkData;
+    const types = getTypes(pkData);
+    const stats = getStats(pkData);
+    const sprite = getSpriteUrl(pkData);
+    const typeHTML = types.map(typeBadge).join(' ');
+
+    const statBarsHTML = stats.map(s => renderStatBar(s.name, s.value)).join('');
+
+    document.getElementById('preview-area').innerHTML = `
+      <div class="card" style="display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:start">
+        <div style="text-align:center">
+          <img src="${sprite}" alt="${pkData.name}" style="width:160px;height:160px;image-rendering:pixelated">
+          <div style="font-size:1.4rem;font-weight:900;text-transform:capitalize;margin:8px 0 6px">${pkData.name}</div>
+          <div style="margin-bottom:12px">${typeHTML}</div>
+          <div style="color:var(--text-muted);font-size:.82rem;margin-bottom:16px">
+            #${String(pkData.id).padStart(3,'0')} &nbsp;|&nbsp; ${pkData.height/10}m &nbsp;|&nbsp; ${pkData.weight/10}kg
+          </div>
+          <button class="btn btn-primary" style="width:100%" onclick="addToTeam('${pkData.name}', 50)">
+            + Add to Team
+          </button>
+        </div>
+        <div>
+          <div class="section-title" style="margin-top:0">Base Stats</div>
+          ${statBarsHTML}
+        </div>
+      </div>`;
+  }
+
+  // ---- Autocomplete ----
+  const searchInput = document.getElementById('search-input');
+  const autoList    = document.getElementById('auto-list');
+
+  // Store {name, id} so we can build correct sprite URLs (sprites use numeric ID, not name)
+  let allPokemon = [];
+  fetchPokemonList().then(list => {
+    allPokemon = list.map(p => ({
+      name: p.name,
+      id: p.url.split('/').filter(Boolean).pop()   // extract dex ID from URL
+    }));
+  });
+
+  let activeIdx = -1;
+
+  function buildSuggestions(q) {
+    autoList.innerHTML = '';
+    activeIdx = -1;
+    if (!q || q.length < 1) { autoList.classList.remove('open'); return; }
+
+    // startsWith matches first (more relevant), then contains matches after
+    const starts   = allPokemon.filter(p => p.name.startsWith(q));
+    const contains = allPokemon.filter(p => !p.name.startsWith(q) && p.name.includes(q));
+    const matches  = [...starts, ...contains].slice(0, 14);
+
+    if (matches.length === 0) { autoList.classList.remove('open'); return; }
+
+    matches.forEach(({ name, id }) => {
+      const item = document.createElement('div');
+      item.className = 'auto-item';
+
+      // Highlight matched portion
+      const idx = name.indexOf(q);
+      const highlighted = idx >= 0
+        ? name.slice(0, idx) +
+          `<strong style="color:var(--yellow)">${name.slice(idx, idx + q.length)}</strong>` +
+          name.slice(idx + q.length)
+        : name;
+
+      item.innerHTML = `
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png"
+          onerror="this.style.display='none'" alt="${name}" loading="lazy">
+        <span style="text-transform:capitalize">${highlighted}</span>`;
+
+      item.addEventListener('mousedown', e => {
+        // mousedown fires before blur, so we can set the value before the list closes
+        e.preventDefault();
+        searchInput.value = name;
+        autoList.classList.remove('open');
+        fetchPokemon(name).then(showPreview).catch(() =>
+          showAlert(`Could not load ${name}`, 'warn'));
+      });
+      autoList.appendChild(item);
+    });
+    autoList.classList.add('open');
+  }
+
+  searchInput.addEventListener('input', () => {
+    buildSuggestions(searchInput.value.trim().toLowerCase());
+  });
+
+  searchInput.addEventListener('keydown', e => {
+    const items = autoList.querySelectorAll('.auto-item');
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, items.length - 1);
+      items.forEach((el, i) => el.classList.toggle('auto-item-active', i === activeIdx));
+      if (items[activeIdx]) items[activeIdx].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, -1);
+      items.forEach((el, i) => el.classList.toggle('auto-item-active', i === activeIdx));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIdx >= 0 && items[activeIdx]) {
+        items[activeIdx].dispatchEvent(new MouseEvent('mousedown'));
+      } else {
+        const q = searchInput.value.trim().toLowerCase();
+        autoList.classList.remove('open');
+        if (q) fetchPokemon(q).then(showPreview).catch(() =>
+          showAlert(`Pokemon "${q}" not found.`, 'warn'));
+      }
+    } else if (e.key === 'Escape') {
+      autoList.classList.remove('open');
+    }
+  });
+
+  searchInput.addEventListener('blur', () => {
+    // Small delay so mousedown on an item can fire first
+    setTimeout(() => autoList.classList.remove('open'), 150);
+  });
+
+  document.addEventListener('click', e => {
+    if (!searchInput.contains(e.target) && !autoList.contains(e.target))
+      autoList.classList.remove('open');
+  });
+
+  renderTeam();
+</script>
+</body>
+</html>

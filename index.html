@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PokeTeam Builder</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="index.html">&#9670; PokeTeam</a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="teambuilder.html">Team Builder</a></li>
+      <li><a href="opponent.html">Pick Opponent</a></li>
+      <li><a href="comparison.html">Matchup Analysis</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="hero">
+    <h1>&#9670; PokeTeam Builder</h1>
+    <p>Build your team, select your generation, choose your opponent, and see how you stack up before you battle.</p>
+    <div class="hero-btns">
+      <a href="teambuilder.html" class="btn btn-primary">&#9654; Build My Team</a>
+      <a href="opponent.html" class="btn btn-yellow">&#9656; Pick Opponent</a>
+      <a href="comparison.html" class="btn btn-secondary">&#9680; Matchup Analysis</a>
+    </div>
+  </div>
+
+  <!-- Quick status bar -->
+  <div id="status-bar" class="card" style="margin-bottom:30px; display:none">
+    <div style="display:flex;gap:30px;align-items:center;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:.75rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:4px">My Team</div>
+        <div id="status-team" style="font-size:1rem;font-weight:700;color:var(--yellow)"></div>
+      </div>
+      <div>
+        <div style="font-size:.75rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:4px">Opponent</div>
+        <div id="status-opp" style="font-size:1rem;font-weight:700;color:var(--yellow)"></div>
+      </div>
+      <div style="margin-left:auto">
+        <a href="comparison.html" class="btn btn-yellow" id="goto-compare" style="display:none">See Matchup &#8594;</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon">&#9876;</div>
+      <h3>Team Builder</h3>
+      <p>Search any Pokemon from all 9 generations. Add up to 6 to your party. Your team is saved between pages.</p>
+      <br><a href="teambuilder.html" class="btn btn-primary" style="font-size:.85rem">Open Team Builder</a>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#127942;</div>
+      <h3>Pick Your Opponent</h3>
+      <p>Select a generation (I–IX) then choose a Gym Leader, Elite Four member, or Champion to face.</p>
+      <br><a href="opponent.html" class="btn btn-primary" style="font-size:.85rem">Select Opponent</a>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#9878;</div>
+      <h3>Matchup Analysis</h3>
+      <p>Get a full type-coverage breakdown — offensive reach, defensive vulnerabilities, and a battle readiness score.</p>
+      <br><a href="comparison.html" class="btn btn-primary" style="font-size:.85rem">Analyse Matchup</a>
+    </div>
+  </div>
+
+  <div style="margin-top:40px" class="card">
+    <h3 style="color:var(--yellow);margin-bottom:12px">How it works</h3>
+    <ol style="padding-left:20px;color:var(--text-muted);font-size:.9rem;line-height:2">
+      <li>Go to <strong style="color:var(--text)">Team Builder</strong> and search for Pokemon to build your party of up to 6.</li>
+      <li>Go to <strong style="color:var(--text)">Pick Opponent</strong>, choose your generation and the trainer you're about to face.</li>
+      <li>Head to <strong style="color:var(--text)">Matchup Analysis</strong> to see your type coverage score, individual matchups, and recommendations.</li>
+    </ol>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  // Show quick status bar if data exists
+  const team = getMyTeam();
+  const opp  = getSelectedOpponent();
+  if (team.length > 0 || opp) {
+    document.getElementById('status-bar').style.display = 'block';
+    document.getElementById('status-team').textContent =
+      team.length > 0 ? team.map(p => p.name).join(', ') : 'None set';
+    document.getElementById('status-opp').textContent =
+      opp ? `${opp.name} (Gen ${opp.gen})` : 'None selected';
+    if (team.length > 0 && opp)
+      document.getElementById('goto-compare').style.display = 'inline-flex';
+  }
+</script>
+</body>
+</html>

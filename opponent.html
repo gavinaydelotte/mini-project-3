@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pick Opponent – PokeTeam</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="index.html">&#9670; PokeTeam</a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="teambuilder.html">Team Builder</a></li>
+      <li><a href="opponent.html">Pick Opponent</a></li>
+      <li><a href="comparison.html">Matchup Analysis</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-title">Pick Opponent</div>
+  <div class="page-subtitle">Select a generation, then choose the trainer you want to battle against.</div>
+
+  <!-- Generation select -->
+  <div class="section-title">Step 1 — Choose Generation</div>
+  <div class="gen-grid" id="gen-grid"></div>
+
+  <!-- Opponent select -->
+  <div id="opp-section" style="display:none">
+    <div class="divider"></div>
+    <div class="section-title">Step 2 — Choose Opponent</div>
+
+    <!-- Trainer search -->
+    <div class="search-wrap" style="max-width:400px;margin-bottom:16px">
+      <input type="text" class="search-input" id="trainer-search"
+        placeholder="Filter trainers (e.g. Cynthia, Lance)..." autocomplete="off">
+    </div>
+    <div id="trainer-no-results" class="alert alert-info" style="display:none;max-width:400px">
+      No trainers match that name.
+    </div>
+
+    <div class="opponents-grid" id="opp-grid"></div>
+  </div>
+
+  <!-- Opponent preview -->
+  <div id="opp-preview" style="display:none;margin-top:28px"></div>
+
+  <!-- Confirm button -->
+  <div style="margin-top:24px" id="confirm-area" style="display:none"></div>
+</div>
+
+<script src="js/app.js"></script>
+<script src="js/gymData.js"></script>
+<script>
+  let selectedGen = null;
+  let selectedOpp = null;
+
+  // ---- Build generation grid ----
+  const genGrid = document.getElementById('gen-grid');
+  Object.entries(GYM_DATA).forEach(([genNum, genData]) => {
+    const card = document.createElement('div');
+    card.className = 'gen-card';
+    card.dataset.gen = genNum;
+    card.innerHTML = `
+      <div class="gen-number">${toRoman(Number(genNum))}</div>
+      <div class="gen-name">${genData.game}</div>
+      <div class="gen-region">${genData.region}</div>`;
+    card.addEventListener('click', () => selectGen(Number(genNum), card));
+    genGrid.appendChild(card);
+  });
+
+  function toRoman(n) {
+    const map = {1:'I',2:'II',3:'III',4:'IV',5:'V',6:'VI',7:'VII',8:'VIII',9:'IX'};
+    return map[n] || n;
+  }
+
+  function selectGen(genNum, cardEl) {
+    document.querySelectorAll('.gen-card').forEach(c => c.classList.remove('selected'));
+    cardEl.classList.add('selected');
+    selectedGen = genNum;
+    selectedOpp = null;
+    document.getElementById('trainer-search').value = '';
+    renderOpponents(genNum);
+    document.getElementById('opp-preview').style.display = 'none';
+    document.getElementById('confirm-area').innerHTML = '';
+    document.getElementById('opp-section').style.display = 'block';
+    document.getElementById('opp-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---- Build opponent grid ----
+  function renderOpponents(genNum, filter = '') {
+    const genData = GYM_DATA[genNum];
+    const grid = document.getElementById('opp-grid');
+    const noResults = document.getElementById('trainer-no-results');
+    grid.innerHTML = '';
+
+    const q = filter.trim().toLowerCase();
+    const list = q
+      ? genData.opponents.filter(o =>
+          o.name.toLowerCase().includes(q) ||
+          o.role.toLowerCase().includes(q) ||
+          o.specialType.toLowerCase().includes(q))
+      : genData.opponents;
+
+    noResults.style.display = list.length === 0 ? 'block' : 'none';
+
+    list.forEach(opp => {
+      const card = document.createElement('div');
+      card.className = 'opp-card';
+      card.dataset.id = opp.id;
+      const typeHTML = opp.specialType !== 'mixed'
+        ? `<div class="opponent-type">${typeBadge(opp.specialType)}</div>` : '';
+
+      // Highlight matched name portion
+      let nameDisplay = opp.name;
+      if (q) {
+        const idx = opp.name.toLowerCase().indexOf(q);
+        if (idx >= 0)
+          nameDisplay =
+            opp.name.slice(0, idx) +
+            `<mark style="background:rgba(255,203,5,.35);color:inherit;border-radius:2px">${opp.name.slice(idx, idx + q.length)}</mark>` +
+            opp.name.slice(idx + q.length);
+      }
+
+      card.innerHTML = `
+        <div class="opp-name">${nameDisplay}</div>
+        <div class="opp-role">${opp.role}</div>
+        ${opp.badge ? `<div style="font-size:.72rem;color:#888;margin-bottom:3px">${opp.badge}</div>` : ''}
+        ${typeHTML}`;
+      card.addEventListener('click', () => selectOpponent(opp, genNum, card));
+      grid.appendChild(card);
+    });
+  }
+
+  // Trainer search filter
+  document.getElementById('trainer-search').addEventListener('input', function() {
+    if (selectedGen !== null) renderOpponents(selectedGen, this.value);
+  });
+
+  async function selectOpponent(opp, genNum, cardEl) {
+    document.querySelectorAll('.opp-card').forEach(c => c.classList.remove('selected'));
+    cardEl.classList.add('selected');
+    selectedOpp = { ...opp, gen: genNum };
+    await renderOppPreview(opp, genNum);
+  }
+
+  async function renderOppPreview(opp, genNum) {
+    const preview = document.getElementById('opp-preview');
+    preview.style.display = 'block';
+    preview.innerHTML = `<div class="spinner"></div>`;
+
+    // Fetch all team Pokemon
+    const fetched = await Promise.allSettled(
+      opp.team.map(p => fetchPokemon(p.name))
+    );
+
+    const cardsHTML = opp.team.map((p, i) => {
+      const res = fetched[i];
+      if (res.status === 'fulfilled') {
+        return renderPokemonCard(res.value, p.level, false);
+      }
+      return `<div class="team-slot"><span class="empty-text">${p.name}<br>Lv.${p.level}</span></div>`;
+    }).join('');
+
+    const typeHTML = opp.specialType !== 'mixed' ? typeBadge(opp.specialType) : '';
+
+    preview.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:1.5rem;font-weight:900">${opp.name}</div>
+            <div style="color:var(--text-muted);font-size:.88rem;margin:3px 0">${opp.role} &mdash; Gen ${toRoman(genNum)} (${GYM_DATA[genNum].region})</div>
+            <div style="margin-top:6px">${typeHTML}</div>
+          </div>
+        </div>
+        <div class="section-title" style="margin-top:0;margin-bottom:12px">Team (${opp.team.length} Pokemon)</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px">
+          ${cardsHTML}
+        </div>
+        <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="confirmOpponent()">
+            &#10003; Select This Opponent
+          </button>
+          <a href="comparison.html" class="btn btn-yellow" id="go-compare-btn" style="display:none">
+            Go to Matchup Analysis &#8594;
+          </a>
+        </div>
+        <div id="opp-confirm-msg"></div>
+      </div>`;
+  }
+
+  function confirmOpponent() {
+    if (!selectedOpp) return;
+    saveSelectedOpponent(selectedOpp);
+    const msg = document.getElementById('opp-confirm-msg');
+    msg.innerHTML = `<div class="alert alert-success" style="margin-top:12px">
+      &#10003; ${selectedOpp.name} saved as your opponent!
+      <a href="comparison.html" style="color:inherit;font-weight:700">Go to Matchup Analysis &#8594;</a>
+    </div>`;
+    document.getElementById('go-compare-btn').style.display = 'inline-flex';
+  }
+
+  // Pre-select saved opponent if any
+  const saved = getSelectedOpponent();
+  if (saved) {
+    const genCard = document.querySelector(`.gen-card[data-gen="${saved.gen}"]`);
+    if (genCard) genCard.click();
+    // Delay to let opponents render, then auto-select
+    setTimeout(() => {
+      const oppCard = document.querySelector(`.opp-card[data-id="${saved.id}"]`);
+      if (oppCard) oppCard.click();
+    }, 100);
+  }
+</script>
+</body>
+</html>
