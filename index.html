@@ -89,7 +89,7 @@
     document.getElementById('status-team').textContent =
       team.length > 0 ? team.map(p => p.name).join(', ') : 'None set';
     document.getElementById('status-opp').textContent =
-      opp ? `${opp.name} (Gen ${opp.gen})` : 'None selected';
+      opp ? `${opp.name} — Gen ${opp.gen}${opp.game ? ' ('+opp.game+')' : ''}` : 'None selected';
     if (team.length > 0 && opp)
       document.getElementById('goto-compare').style.display = 'inline-flex';
   }

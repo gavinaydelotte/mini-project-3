@@ -160,6 +160,34 @@ nav { background: var(--red); position: sticky; top: 0; z-index: 100; box-shadow
 .section-title { font-size: 1.1rem; font-weight: 800; color: var(--yellow); margin-bottom: 14px; margin-top: 26px; }
 .divider { height: 1px; background: var(--border); margin: 24px 0; }
 
+/* CATEGORY TABS */
+.cat-tab { font-size: .82rem; padding: 7px 14px; border: 1px solid var(--border); color: var(--text-muted); background: transparent; }
+.cat-tab:hover { background: var(--border); color: var(--text); }
+.cat-tab.active { background: var(--red); color: #fff; border-color: var(--red); }
+
+/* GAME SELECT BUTTON */
+.game-btn { font-size: .88rem; }
+.game-btn.active-game { background: var(--red); color: #fff; border-color: var(--red); }
+
+/* CATEGORY BADGES (small label on opponent cards) */
+.cat-badge { display: inline-block; font-size: .65rem; padding: 2px 8px; border-radius: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+.cat-badge-gym      { background: rgba(56,189,248,.12); color: #38bdf8; }
+.cat-badge-elite4   { background: rgba(167,139,250,.12); color: #a78bfa; }
+.cat-badge-champion { background: rgba(255,203,5,.15); color: var(--yellow); }
+.cat-badge-rival    { background: rgba(74,222,128,.12); color: #4ade80; }
+.cat-badge-villain  { background: rgba(248,113,113,.12); color: #f87171; }
+
+/* CATEGORY ACCENT on opponent cards */
+.opp-card[data-cat="champion"] { border-color: rgba(255,203,5,.35); }
+.opp-card[data-cat="rival"]    { border-color: rgba(74,222,128,.25); }
+.opp-card[data-cat="villain"]  { border-color: rgba(248,113,113,.25); }
+.opp-card[data-cat="elite4"]   { border-color: rgba(167,139,250,.25); }
+
+.opp-card[data-cat="champion"].selected { border-color: var(--yellow); }
+.opp-card[data-cat="rival"].selected    { border-color: #4ade80; }
+.opp-card[data-cat="villain"].selected  { border-color: #f87171; }
+.opp-card[data-cat="elite4"].selected   { border-color: #a78bfa; }
+
 /* RESPONSIVE */
 @media (max-width: 900px) { .team-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 700px) { .matchup-grid { grid-template-columns: 1fr; } .vs-header { grid-template-columns: 1fr; } .vs-text { display: none; } .hero h1 { font-size: 2.2rem; } }
