@@ -3,14 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Matchup Analysis – PokeTeam</title>
+  <title>Matchup Analysis – PokeMatchup</title>
+  <link rel="icon" type="image/png" href="PokeMatchup.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <nav>
   <div class="nav-inner">
-    <a class="nav-logo" href="index.html">&#9670; PokeTeam</a>
+    <a class="nav-logo" href="index.html"><img src="PokeMatchup.png" alt="PokeMatchup" class="nav-logo-img"></a>
+    <button class="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
     <ul class="nav-links">
       <li><a href="index.html">Home</a></li>
       <li><a href="teambuilder.html">Team Builder</a></li>
@@ -38,8 +40,8 @@ function toRoman(n) {
 }
 
 async function init() {
-  const myTeamRaw  = getMyTeam();
-  const oppRaw     = getSelectedOpponent();
+  const myTeamRaw = getMyTeam();
+  const oppRaw    = getSelectedOpponent();
 
   if (myTeamRaw.length === 0 && !oppRaw) {
     main.innerHTML = `
@@ -64,9 +66,26 @@ async function init() {
   // Fetch my team data
   const myFetched = await Promise.allSettled(myTeamRaw.map(p => fetchPokemon(p.name)));
   const myTeam = myFetched
-    .map((r, i) => r.status === 'fulfilled'
-      ? { name: myTeamRaw[i].name, level: myTeamRaw[i].level, types: getTypes(r.value), pkData: r.value }
-      : null)
+    .map((r, i) => {
+      if (r.status !== 'fulfilled') return null;
+      const raw = myTeamRaw[i];
+      // Derive offensiveTypes from configured moves (filter nulls, dedupe types)
+      const movesWithType = raw.moves ? raw.moves.filter(Boolean) : [];
+      const offensiveTypes = movesWithType.length > 0
+        ? [...new Set(movesWithType.map(m => m.type))]
+        : null;
+      return {
+        name:          raw.name,
+        level:         raw.level,
+        types:         getTypes(r.value),
+        pkData:        r.value,
+        offensiveTypes,
+        ability:       raw.ability || null,
+        heldItem:      raw.heldItem ? raw.heldItem.name : null,
+        heldItemData:  raw.heldItem || null,
+        moves:         movesWithType
+      };
+    })
     .filter(Boolean);
 
   // Fetch opponent team
@@ -93,23 +112,34 @@ function scoreColor(s) {
 }
 
 function scoreVerdict(s) {
-  if (s >= 75) return { text: 'Strong Advantage', cls: 'alert-success' };
-  if (s >= 55) return { text: 'Slight Advantage', cls: 'alert-success' };
-  if (s >= 40) return { text: 'Even Matchup', cls: 'alert-info' };
+  if (s >= 75) return { text: 'Strong Advantage',    cls: 'alert-success' };
+  if (s >= 55) return { text: 'Slight Advantage',    cls: 'alert-success' };
+  if (s >= 40) return { text: 'Even Matchup',        cls: 'alert-info' };
   if (s >= 25) return { text: 'Slight Disadvantage', cls: 'alert-warn' };
-  return { text: 'Strong Disadvantage', cls: 'alert-danger' };
+  return              { text: 'Strong Disadvantage', cls: 'alert-danger' };
 }
 
 function renderTeamSummary(team, label) {
-  const cardsHTML = team.map(p =>
-    `<div style="text-align:center">
-       <img src="${getSpriteUrl(p.pkData)}" alt="${p.name}"
-         style="width:80px;height:80px;image-rendering:pixelated">
-       <div style="font-size:.78rem;font-weight:700;text-transform:capitalize;margin:3px 0">${p.name}</div>
-       <div style="font-size:.7rem;color:var(--text-muted)">Lv.${p.level}</div>
-       <div style="margin-top:3px">${p.types.map(typeBadge).join(' ')}</div>
-     </div>`
-  ).join('');
+  const cardsHTML = team.map(p => {
+    const abilityLine = p.ability
+      ? `<div style="font-size:.65rem;color:var(--text-muted);margin-top:2px;text-transform:capitalize">&#9670; ${p.ability.replace(/-/g,' ')}</div>`
+      : '';
+    const itemLine = p.heldItemData
+      ? `<div style="display:flex;align-items:center;gap:3px;justify-content:center;margin-top:3px">
+           ${p.heldItemData.sprite ? `<img src="${p.heldItemData.sprite}" alt="" style="width:20px;height:20px;image-rendering:pixelated">` : ''}
+           <span style="font-size:.62rem;color:var(--text-muted);text-transform:capitalize">${p.heldItemData.name.replace(/-/g,' ')}</span>
+         </div>` : '';
+    return `
+      <div style="text-align:center">
+        <img src="${getSpriteUrl(p.pkData)}" alt="${p.name}"
+          style="width:80px;height:80px;image-rendering:pixelated">
+        <div style="font-size:.78rem;font-weight:700;text-transform:capitalize;margin:3px 0">${p.name}</div>
+        <div style="font-size:.7rem;color:var(--text-muted)">Lv.${p.level}</div>
+        <div style="margin-top:3px">${p.types.map(typeBadge).join(' ')}</div>
+        ${abilityLine}
+        ${itemLine}
+      </div>`;
+  }).join('');
   return `
     <div>
       <div style="font-size:.75rem;font-weight:800;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">${label}</div>
@@ -119,7 +149,7 @@ function renderTeamSummary(team, label) {
 
 function renderResults(myTeam, oppTeam, oppRaw, analysis) {
   const verdict = scoreVerdict(analysis.score);
-  const sc = scoreColor(analysis.score);
+  const sc      = scoreColor(analysis.score);
 
   // --- VS Header ---
   const vsHTML = `
@@ -128,6 +158,17 @@ function renderResults(myTeam, oppTeam, oppRaw, analysis) {
       <div class="vs-text">VS</div>
       ${renderTeamSummary(oppTeam, `${oppRaw.name} (Gen ${toRoman(oppRaw.gen)})`)}
     </div>`;
+
+  // --- Move analysis banner ---
+  const moveBanner = analysis.usingMoves
+    ? `<div class="alert alert-info" style="margin-bottom:16px">
+        &#9656; Move-based analysis active — offense uses your configured move types.
+        Unconfigured Pokemon fall back to their own type(s).
+       </div>`
+    : `<div class="alert alert-warn" style="margin-bottom:16px">
+        &#9656; No moves configured — offense is estimated from Pokemon types.
+        <a href="teambuilder.html" style="color:inherit;font-weight:700;margin-left:6px">Configure moves &#8594;</a>
+       </div>`;
 
   // --- Score card ---
   const scoreHTML = `
@@ -141,8 +182,8 @@ function renderResults(myTeam, oppTeam, oppRaw, analysis) {
     </div>`;
 
   // --- Coverage bars ---
-  const offPct  = Math.round(analysis.offCoverage);
-  const defPct  = Math.round(analysis.defCoverage);
+  const offPct   = Math.round(analysis.offCoverage);
+  const defPct   = Math.round(analysis.defCoverage);
   const offColor = offPct >= 60 ? '#4ade80' : offPct >= 35 ? '#fbbf24' : '#f87171';
   const defColor = defPct >= 60 ? '#4ade80' : defPct >= 35 ? '#fbbf24' : '#f87171';
 
@@ -186,28 +227,48 @@ function renderResults(myTeam, oppTeam, oppRaw, analysis) {
       <ul>${recItems.map(r => `<li style="margin-bottom:6px">${r}</li>`).join('')}</ul>
     </div>`;
 
-  // --- Individual matchup table (Your team vs each opponent) ---
-  const offTableRows = analysis.offRows.map(me => {
-    const bestMult = Math.max(...me.vs.map(v => v.mult));
-    const cells = me.vs.map(v => `<td style="text-align:center">${multLabel(v.mult)}</td>`).join('');
-    return `<tr>
-      <td style="text-transform:capitalize;font-weight:700">${me.name}</td>
-      <td>${me.types.map(typeBadge).join(' ')}</td>
-      ${cells}
-      <td style="text-align:center;font-weight:700;color:${scoreColor(bestMult >= 2 ? 80 : bestMult >= 1 ? 50 : 20)}">
-        Best: ${bestMult >= 2 ? `${bestMult}×` : bestMult === 1 ? '1×' : `${bestMult}×`}
-      </td>
-    </tr>`;
-  }).join('');
+  // --- Offensive matchup table ---
+  const offSubtitle = analysis.usingMoves
+    ? 'Using configured move types. The best move type vs each opponent is shown.'
+    : 'Using Pokemon types as a proxy — configure moves in Team Builder for better accuracy.';
 
   const offHeaderCols = oppTeam.map(p =>
     `<th style="text-align:center;text-transform:capitalize">${p.name}</th>`
   ).join('');
 
+  const offTableRows = analysis.offRows.map(me => {
+    const bestMult = Math.max(...me.vs.map(v => v.mult));
+    const cells = me.vs.map(v => {
+      const label = multLabel(v.mult);
+      // Show the best move type hint when using moves
+      const hint = me.usingMoves && v.bestType
+        ? `<div style="font-size:.63rem;color:var(--text-muted);margin-top:2px;text-transform:capitalize">${v.bestType}</div>`
+        : '';
+      return `<td style="text-align:center">${label}${hint}</td>`;
+    }).join('');
+
+    const moveTypes = me.usingMoves
+      ? `<div style="font-size:.65rem;color:var(--text-muted);margin-top:3px">${me.offensiveTypes.map(t =>
+          `<span class="type-badge type-${t}" style="font-size:.57rem;padding:1px 5px">${t}</span>`
+        ).join(' ')}</div>`
+      : '';
+
+    return `<tr>
+      <td style="text-transform:capitalize;font-weight:700">
+        ${me.name}${moveTypes}
+      </td>
+      <td>${me.types.map(typeBadge).join(' ')}</td>
+      ${cells}
+      <td style="text-align:center;font-weight:700;color:${scoreColor(bestMult >= 2 ? 80 : bestMult >= 1 ? 50 : 20)}">
+        ${bestMult >= 2 ? `${bestMult}&times;` : bestMult === 1 ? '1&times;' : `${bestMult}&times;`}
+      </td>
+    </tr>`;
+  }).join('');
+
   const offTableHTML = `
     <div class="card" style="overflow-x:auto">
       <div class="section-title" style="margin-top:0">Your Team — Offensive Matchups</div>
-      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px">How hard each of your Pokemon can hit each opponent (using their own types as move type proxy).</p>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px">${offSubtitle}</p>
       <table class="matchup-table">
         <thead><tr>
           <th>Your Pokemon</th><th>Types</th>
@@ -218,28 +279,34 @@ function renderResults(myTeam, oppTeam, oppRaw, analysis) {
       </table>
     </div>`;
 
-  // --- Defensive table (opponent hitting your team) ---
+  // --- Defensive table ---
+  const defHeaderCols = myTeam.map(p => {
+    const ab = p.ability
+      ? `<div style="font-size:.6rem;color:var(--text-muted);font-weight:400;margin-top:2px;text-transform:capitalize">${p.ability.replace(/-/g,' ')}</div>`
+      : '';
+    return `<th style="text-align:center;text-transform:capitalize">${p.name}${ab}</th>`;
+  }).join('');
+
   const defTableRows = analysis.defRows.map(opp => {
-    const cells = opp.vs.map(v => `<td style="text-align:center">${multLabel(v.mult)}</td>`).join('');
+    const cells  = opp.vs.map(v => `<td style="text-align:center">${multLabel(v.mult)}</td>`).join('');
     const maxHit = Math.max(...opp.vs.map(v => v.mult));
     return `<tr>
       <td style="text-transform:capitalize;font-weight:700">${opp.name}</td>
       <td>${opp.types.map(typeBadge).join(' ')}</td>
       ${cells}
       <td style="text-align:center;font-weight:700;color:${maxHit >= 2 ? '#f87171' : '#4ade80'}">
-        Best: ${maxHit}×
+        ${maxHit}&times;
       </td>
     </tr>`;
   }).join('');
 
-  const defHeaderCols = myTeam.map(p =>
-    `<th style="text-align:center;text-transform:capitalize">${p.name}</th>`
-  ).join('');
-
   const defTableHTML = `
     <div class="card" style="overflow-x:auto">
       <div class="section-title" style="margin-top:0">Opponent — Offensive Matchups vs You</div>
-      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px">How hard each opponent Pokemon can hit your team. Higher = more dangerous.</p>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px">
+        How hard each opponent Pokemon can hit your team.
+        ${myTeam.some(p => p.ability) ? 'Ability immunities/resistances are factored in.' : ''}
+      </p>
       <table class="matchup-table">
         <thead><tr>
           <th>Opp. Pokemon</th><th>Types</th>
@@ -248,6 +315,45 @@ function renderResults(myTeam, oppTeam, oppRaw, analysis) {
         </tr></thead>
         <tbody>${defTableRows}</tbody>
       </table>
+    </div>`;
+
+  // --- Opponent team details ---
+  const oppDetailCards = oppTeam.map(p => {
+    const abilities = p.pkData.abilities
+      .map(a => `<span style="text-transform:capitalize">${a.ability.name.replace(/-/g,' ')}${a.is_hidden ? ' <em style="font-size:.6rem;color:var(--text-muted)">(H)</em>' : ''}</span>`)
+      .join(' · ');
+    const moves = getLevelUpMoves(p.pkData, p.level);
+    const movesHTML = moves.length > 0
+      ? moves.map(m => `<span style="font-size:.68rem;text-transform:capitalize;color:var(--text)">${m.replace(/-/g,' ')}</span>`).join(' · ')
+      : '<span style="color:var(--text-muted)">—</span>';
+    return `
+      <div style="display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--darker);border-radius:10px">
+        <img src="${getSpriteUrl(p.pkData)}" alt="${p.name}"
+          style="width:56px;height:56px;image-rendering:pixelated;flex-shrink:0">
+        <div style="min-width:0">
+          <div style="font-weight:800;text-transform:capitalize;margin-bottom:3px">${p.name}
+            <span style="font-weight:400;color:var(--text-muted);font-size:.8rem">Lv.${p.level}</span>
+          </div>
+          <div style="margin-bottom:5px">${p.types.map(typeBadge).join(' ')}</div>
+          <div style="font-size:.68rem;color:var(--text-muted);margin-bottom:3px">
+            <strong style="color:var(--text)">Abilities:</strong> ${abilities}
+          </div>
+          <div style="font-size:.68rem;color:var(--text-muted)">
+            <strong style="color:var(--text)">Est. Moves:</strong> ${movesHTML}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const oppDetailHTML = `
+    <div class="card">
+      <div class="section-title" style="margin-top:0">Opponent Team Details</div>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:14px">
+        Abilities are accurate. Moves shown are the 4 highest-level move learned at or below each Pokemon's level.
+      </p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+        ${oppDetailCards}
+      </div>
     </div>`;
 
   // --- Edit links ---
@@ -259,6 +365,7 @@ function renderResults(myTeam, oppTeam, oppRaw, analysis) {
 
   main.innerHTML = `
     ${vsHTML}
+    ${moveBanner}
     <div class="matchup-grid">
       ${scoreHTML}
       ${coverageHTML}
@@ -268,6 +375,8 @@ function renderResults(myTeam, oppTeam, oppRaw, analysis) {
     ${offTableHTML}
     <div style="margin-top:18px"></div>
     ${defTableHTML}
+    <div class="divider"></div>
+    ${oppDetailHTML}
     <div class="divider"></div>
     ${editHTML}`;
 }

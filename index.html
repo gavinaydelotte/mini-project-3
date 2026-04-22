@@ -3,14 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PokeTeam Builder</title>
+  <title>PokeMatchup</title>
+  <link rel="icon" type="image/png" href="PokeMatchup.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <nav>
   <div class="nav-inner">
-    <a class="nav-logo" href="index.html">&#9670; PokeTeam</a>
+    <a class="nav-logo" href="index.html"><img src="PokeMatchup.png" alt="PokeMatchup" class="nav-logo-img"></a>
+    <button class="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
     <ul class="nav-links">
       <li><a href="index.html">Home</a></li>
       <li><a href="teambuilder.html">Team Builder</a></li>
@@ -22,7 +24,7 @@
 
 <div class="container">
   <div class="hero">
-    <h1>&#9670; PokeTeam Builder</h1>
+    <img src="PokeMatchup.png" alt="PokeMatchup" class="hero-logo">
     <p>Build your team, select your generation, choose your opponent, and see how you stack up before you battle.</p>
     <div class="hero-btns">
       <a href="teambuilder.html" class="btn btn-primary">&#9654; Build My Team</a>
@@ -50,19 +52,19 @@
 
   <div class="feature-grid">
     <div class="feature-card">
-      <div class="feature-icon">&#9876;</div>
+      <div class="feature-icon"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png" alt="Pokeball" style="width:64px;height:64px;image-rendering:pixelated"></div>
       <h3>Team Builder</h3>
       <p>Search any Pokemon from all 9 generations. Add up to 6 to your party. Your team is saved between pages.</p>
       <br><a href="teambuilder.html" class="btn btn-primary" style="font-size:.85rem">Open Team Builder</a>
     </div>
     <div class="feature-card">
-      <div class="feature-icon">&#127942;</div>
+      <div class="feature-icon"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/assault-vest.png" alt="Assault Vest" style="width:64px;height:64px;image-rendering:pixelated"></div>
       <h3>Pick Your Opponent</h3>
       <p>Select a generation (I–IX) then choose a Gym Leader, Elite Four member, or Champion to face.</p>
       <br><a href="opponent.html" class="btn btn-primary" style="font-size:.85rem">Select Opponent</a>
     </div>
     <div class="feature-card">
-      <div class="feature-icon">&#9878;</div>
+      <div class="feature-icon"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/tm-normal.png" alt="TM" style="width:64px;height:64px;image-rendering:pixelated"></div>
       <h3>Matchup Analysis</h3>
       <p>Get a full type-coverage breakdown — offensive reach, defensive vulnerabilities, and a battle readiness score.</p>
       <br><a href="comparison.html" class="btn btn-primary" style="font-size:.85rem">Analyse Matchup</a>

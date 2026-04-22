@@ -3,14 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Team Builder – PokeTeam</title>
+  <title>Team Builder – PokeMatchup</title>
+  <link rel="icon" type="image/png" href="PokeMatchup.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <nav>
   <div class="nav-inner">
-    <a class="nav-logo" href="index.html">&#9670; PokeTeam</a>
+    <a class="nav-logo" href="index.html"><img src="PokeMatchup.png" alt="PokeMatchup" class="nav-logo-img"></a>
+    <button class="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
     <ul class="nav-links">
       <li><a href="index.html">Home</a></li>
       <li><a href="teambuilder.html">Team Builder</a></li>
@@ -22,17 +24,18 @@
 
 <div class="container">
   <div class="page-title">Team Builder</div>
-  <div class="page-subtitle">Build a party of up to 6 Pokemon. Your team is saved automatically.</div>
+  <div class="page-subtitle">Build a party of up to 6 Pokemon. Set levels, abilities, moves, and held items for a precise matchup analysis.</div>
 
   <!-- Current Team -->
   <div class="section-title">Your Party</div>
-  <div class="team-grid" id="team-grid">
-    <!-- Slots rendered by JS -->
-  </div>
-  <div style="display:flex;gap:10px;margin-bottom:30px;flex-wrap:wrap;">
+  <div class="team-grid" id="team-grid"></div>
+  <div style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;">
     <button class="btn btn-secondary" onclick="clearTeam()">&#10006; Clear Team</button>
     <a href="opponent.html" class="btn btn-yellow" id="next-btn" style="display:none">Next: Pick Opponent &#8594;</a>
   </div>
+
+  <!-- Edit Panel -->
+  <div id="edit-panel" class="card" style="display:none;margin-bottom:28px"></div>
 
   <div class="divider"></div>
 
@@ -43,14 +46,16 @@
       placeholder="Search by name (e.g. charizard, garchomp)..." autocomplete="off">
     <div class="autocomplete-list" id="auto-list"></div>
   </div>
-
-  <!-- Preview card -->
   <div id="preview-area"></div>
 </div>
 
 <script src="js/app.js"></script>
 <script>
-  let previewData = null;
+  let previewData  = null;
+  let editMoves    = [null, null, null, null];
+  let editMoveList = [];
+  let editHeldItem = null;   // { name, sprite } or null
+  let allItems     = [];
 
   // ---- Render team grid ----
   function renderTeam() {
@@ -62,7 +67,7 @@
       slot.className = 'team-slot' + (team[i] ? ' filled' : '');
       if (team[i]) {
         fetchPokemon(team[i].name).then(d => {
-          slot.innerHTML = renderPokemonCard(d, team[i].level, true, i);
+          slot.innerHTML = renderTeamSlotCard(d, team[i], i);
         }).catch(() => {
           slot.innerHTML = `<span class="empty-text">${team[i].name}</span>`;
         });
@@ -74,15 +79,54 @@
     document.getElementById('next-btn').style.display = team.length > 0 ? 'inline-flex' : 'none';
   }
 
+  function renderTeamSlotCard(pkData, member, idx) {
+    const types    = getTypes(pkData);
+    const sprite   = getSpriteUrl(pkData);
+    const typeHTML = types.map(typeBadge).join('');
+
+    const abilityHTML = member.ability
+      ? `<div class="pkmn-ability">&#9670; ${member.ability.replace(/-/g,' ')}</div>` : '';
+
+    const configuredMoves = member.moves ? member.moves.filter(Boolean) : [];
+    const movesHTML = configuredMoves.length > 0
+      ? `<div class="pkmn-moves">${configuredMoves.map(m =>
+          `<span class="type-badge type-${m.type}" style="font-size:.6rem;padding:2px 6px">${m.name.replace(/-/g,' ')}</span>`
+        ).join('')}</div>` : '';
+
+    const itemHTML = member.heldItem
+      ? `<div style="display:flex;align-items:center;gap:4px;justify-content:center;margin-top:5px">
+          ${member.heldItem.sprite ? `<img src="${member.heldItem.sprite}" alt="${member.heldItem.name}" style="width:24px;height:24px;image-rendering:pixelated">` : ''}
+          <span style="font-size:.65rem;color:var(--text-muted);text-transform:capitalize">${member.heldItem.name.replace(/-/g,' ')}</span>
+         </div>` : '';
+
+    return `
+      <div class="pokemon-card filled">
+        <button class="remove-btn" onclick="removeFromTeam(${idx})" title="Remove">&#10005;</button>
+        <img src="${sprite}" alt="${pkData.name}" loading="lazy">
+        <div class="pkmn-name">${pkData.name}</div>
+        <div class="pkmn-level">Lv. ${member.level || 50}</div>
+        <div class="types">${typeHTML}</div>
+        ${abilityHTML}
+        ${movesHTML}
+        ${itemHTML}
+        <button class="btn btn-secondary"
+          style="font-size:.68rem;margin-top:8px;padding:4px 10px;width:100%"
+          onclick="openEditPanel(${idx})">&#9998; Edit</button>
+      </div>`;
+  }
+
   window.removeFromTeam = function(idx) {
     const team = getMyTeam();
     team.splice(idx, 1);
     saveMyTeam(team);
+    const panel = document.getElementById('edit-panel');
+    if (panel.style.display !== 'none' && Number(panel.dataset.idx) >= idx) closeEditPanel();
     renderTeam();
   };
 
   function clearTeam() {
     saveMyTeam([]);
+    closeEditPanel();
     renderTeam();
   }
 
@@ -90,7 +134,7 @@
     const team = getMyTeam();
     if (team.length >= 6) { showAlert('Your team is full! Remove a Pokemon first.', 'warn'); return; }
     if (team.some(p => p.name === name)) { showAlert(`${name} is already on your team.`, 'warn'); return; }
-    team.push({ name, level: level || 50 });
+    team.push({ name, level: level || 50, ability: null, moves: [null,null,null,null], heldItem: null });
     saveMyTeam(team);
     renderTeam();
     showAlert(`${name} added to your team!`, 'success');
@@ -98,25 +142,306 @@
 
   function showAlert(msg, type = 'info') {
     const area = document.getElementById('preview-area');
-    const div = document.createElement('div');
+    const div  = document.createElement('div');
     div.className = `alert alert-${type}`;
     div.textContent = msg;
     area.prepend(div);
     setTimeout(() => div.remove(), 3000);
   }
 
+  // ---- Edit Panel ----
+  async function openEditPanel(idx) {
+    const panel = document.getElementById('edit-panel');
+    panel.innerHTML = '<div class="spinner"></div>';
+    panel.style.display = 'block';
+    panel.dataset.idx = idx;
+    panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+
+    const team   = getMyTeam();
+    const member = team[idx];
+    let pkData;
+    try { pkData = await fetchPokemon(member.name); }
+    catch {
+      panel.innerHTML = `<div class="alert alert-danger">Could not load ${member.name} data.</div>`;
+      return;
+    }
+
+    // Ability options
+    const abilities = pkData.abilities.map(a => a.ability.name);
+    const abilityOptions = ['', ...abilities].map(a =>
+      `<option value="${a}" ${member.ability === a ? 'selected':''}>
+        ${a ? a.replace(/-/g,' ') : '— Not set —'}
+       </option>`
+    ).join('');
+
+    // Move learnset + current state
+    editMoveList = pkData.moves.map(m => m.move.name).sort();
+    editMoves = member.moves ? [...member.moves] : [null,null,null,null];
+    while (editMoves.length < 4) editMoves.push(null);
+
+    // Held item current state
+    editHeldItem = member.heldItem || null;
+
+    const moveSlotsHTML = [0,1,2,3].map(i => {
+      const m = editMoves[i];
+      return `
+        <div class="move-slot">
+          <div style="position:relative">
+            <input type="text" class="search-input move-input"
+              id="move-input-${i}" data-slot="${i}"
+              placeholder="Move ${i+1}…"
+              value="${m ? m.name.replace(/-/g,' ') : ''}"
+              autocomplete="off">
+            <div class="autocomplete-list" id="move-auto-${i}"></div>
+          </div>
+          <div class="move-type-display" id="move-type-${i}">${m ? typeBadge(m.type) : ''}</div>
+        </div>`;
+    }).join('');
+
+    const itemSprite  = editHeldItem?.sprite || '';
+    const itemName    = editHeldItem?.name   || '';
+
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px">
+        <h3 style="text-transform:capitalize;color:var(--yellow)">${member.name}</h3>
+        <button class="btn btn-secondary" onclick="closeEditPanel()" style="font-size:.82rem">&#10005; Close</button>
+      </div>
+
+      <div class="edit-grid" style="margin-bottom:20px">
+        <div>
+          <label class="edit-label" for="edit-level">Level</label>
+          <input type="number" id="edit-level" min="1" max="100"
+            value="${member.level || 50}"
+            class="search-input" style="width:90px;padding:9px 12px">
+        </div>
+        <div>
+          <label class="edit-label" for="edit-ability">Ability</label>
+          <select id="edit-ability" class="edit-select" style="min-width:190px">
+            ${abilityOptions}
+          </select>
+        </div>
+      </div>
+
+      <label class="edit-label">Moves (up to 4)</label>
+      <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:10px">Move types are used for offense calculation in Matchup Analysis.</p>
+      <div class="moves-grid">${moveSlotsHTML}</div>
+
+      <div style="margin-top:20px">
+        <label class="edit-label">Held Item</label>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:2px">
+          <div style="position:relative;flex:1;max-width:280px">
+            <input type="text" class="search-input" id="edit-item-input"
+              placeholder="Search held items…"
+              value="${itemName.replace(/-/g,' ')}"
+              autocomplete="off">
+            <div class="autocomplete-list" id="item-auto-list"></div>
+          </div>
+          <div id="item-preview" style="display:flex;align-items:center;gap:8px;min-height:36px">
+            ${itemSprite ? `<img src="${itemSprite}" alt="${itemName}" style="width:30px;height:30px;image-rendering:pixelated">` : ''}
+            ${itemName   ? `<span style="font-size:.82rem;text-transform:capitalize">${itemName.replace(/-/g,' ')}</span>` : ''}
+          </div>
+          <button class="btn btn-secondary" onclick="clearHeldItem()" style="font-size:.72rem;padding:5px 12px">Clear</button>
+        </div>
+      </div>
+
+      <div style="margin-top:22px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" onclick="saveEditPanel()">&#10003; Save Changes</button>
+        <button class="btn btn-secondary" onclick="clearMoveSlots()">Clear Moves</button>
+        <button class="btn btn-secondary" onclick="closeEditPanel()" style="margin-left:auto">Cancel</button>
+      </div>`;
+
+    setupMoveInputs();
+    setupItemInput();
+  }
+
+  function closeEditPanel() {
+    const panel = document.getElementById('edit-panel');
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    editMoves    = [null,null,null,null];
+    editHeldItem = null;
+  }
+
+  function saveEditPanel() {
+    const panel  = document.getElementById('edit-panel');
+    const idx    = Number(panel.dataset.idx);
+    const team   = getMyTeam();
+    const member = team[idx];
+    member.level    = Math.max(1, Math.min(100, Number(document.getElementById('edit-level').value) || 50));
+    member.ability  = document.getElementById('edit-ability').value || null;
+    member.moves    = editMoves.slice();
+    member.heldItem = editHeldItem;
+    saveMyTeam(team);
+    closeEditPanel();
+    renderTeam();
+    showAlert(`${member.name} updated!`, 'success');
+  }
+
+  function clearMoveSlots() {
+    editMoves = [null,null,null,null];
+    for (let i = 0; i < 4; i++) {
+      const inp = document.getElementById(`move-input-${i}`);
+      const td  = document.getElementById(`move-type-${i}`);
+      if (inp) inp.value = '';
+      if (td)  td.innerHTML = '';
+    }
+  }
+
+  // ---- Move autocomplete ----
+  function setupMoveInputs() {
+    for (let i = 0; i < 4; i++) {
+      const input    = document.getElementById(`move-input-${i}`);
+      const autoList = document.getElementById(`move-auto-${i}`);
+      if (!input) continue;
+
+      input.addEventListener('input', () => {
+        const q = input.value.trim().replace(/\s+/g,'-').toLowerCase();
+        if (!input.value.trim()) {
+          editMoves[i] = null;
+          document.getElementById(`move-type-${i}`).innerHTML = '';
+          autoList.classList.remove('open');
+          return;
+        }
+        buildMoveSuggestions(i, q, autoList);
+      });
+      input.addEventListener('blur', () => setTimeout(() => autoList.classList.remove('open'), 150));
+      input.addEventListener('keydown', e => handleAutoKeydown(e, autoList, i, 'move'));
+    }
+  }
+
+  function buildMoveSuggestions(slotIdx, q, autoList) {
+    autoList.innerHTML = '';
+    if (q.length < 2) { autoList.classList.remove('open'); return; }
+    const starts   = editMoveList.filter(m => m.startsWith(q));
+    const contains = editMoveList.filter(m => !m.startsWith(q) && m.includes(q));
+    const matches  = [...starts, ...contains].slice(0, 12);
+    if (!matches.length) { autoList.classList.remove('open'); return; }
+    matches.forEach(moveName => {
+      const item = document.createElement('div');
+      item.className = 'auto-item';
+      item.textContent = moveName.replace(/-/g,' ');
+      item.addEventListener('mousedown', e => { e.preventDefault(); selectMove(slotIdx, moveName); autoList.classList.remove('open'); });
+      autoList.appendChild(item);
+    });
+    autoList.classList.add('open');
+  }
+
+  async function selectMove(slotIdx, moveName) {
+    const input   = document.getElementById(`move-input-${slotIdx}`);
+    const typeDiv = document.getElementById(`move-type-${slotIdx}`);
+    input.value = moveName.replace(/-/g,' ');
+    typeDiv.innerHTML = '<span style="color:var(--text-muted);font-size:.78rem">Loading…</span>';
+    try {
+      const moveData   = await fetchMove(moveName);
+      const moveType   = moveData.type.name;
+      editMoves[slotIdx] = { name: moveName, type: moveType };
+      typeDiv.innerHTML  = typeBadge(moveType);
+    } catch {
+      typeDiv.innerHTML  = '<span style="color:#f87171;font-size:.78rem">Not found</span>';
+      editMoves[slotIdx] = null;
+    }
+  }
+
+  // ---- Item autocomplete ----
+  function setupItemInput() {
+    const input    = document.getElementById('edit-item-input');
+    const autoList = document.getElementById('item-auto-list');
+    if (!input) return;
+
+    input.addEventListener('focus', async () => {
+      if (allItems.length === 0) {
+        input.placeholder = 'Loading items…';
+        allItems = await fetchItemList();
+        input.placeholder = 'Search held items…';
+      }
+    });
+    input.addEventListener('input', () => {
+      const q = input.value.trim().replace(/\s+/g,'-').toLowerCase();
+      if (!input.value.trim()) { clearHeldItem(); autoList.classList.remove('open'); return; }
+      buildItemSuggestions(q, autoList);
+    });
+    input.addEventListener('blur', () => setTimeout(() => autoList.classList.remove('open'), 150));
+    input.addEventListener('keydown', e => handleAutoKeydown(e, autoList, null, 'item'));
+  }
+
+  function buildItemSuggestions(q, autoList) {
+    autoList.innerHTML = '';
+    if (q.length < 2) { autoList.classList.remove('open'); return; }
+    const starts   = allItems.filter(n => n.startsWith(q));
+    const contains = allItems.filter(n => !n.startsWith(q) && n.includes(q));
+    const matches  = [...starts, ...contains].slice(0, 10);
+    if (!matches.length) { autoList.classList.remove('open'); return; }
+    matches.forEach(itemName => {
+      const el = document.createElement('div');
+      el.className = 'auto-item';
+      el.textContent = itemName.replace(/-/g,' ');
+      el.addEventListener('mousedown', e => { e.preventDefault(); selectHeldItem(itemName); autoList.classList.remove('open'); });
+      autoList.appendChild(el);
+    });
+    autoList.classList.add('open');
+  }
+
+  async function selectHeldItem(itemName) {
+    const input   = document.getElementById('edit-item-input');
+    const preview = document.getElementById('item-preview');
+    input.value   = itemName.replace(/-/g,' ');
+    preview.innerHTML = '<span style="color:var(--text-muted);font-size:.78rem">Loading…</span>';
+    try {
+      const data   = await fetchItem(itemName);
+      const sprite = data.sprites.default || '';
+      editHeldItem = { name: itemName, sprite };
+      preview.innerHTML =
+        (sprite ? `<img src="${sprite}" alt="${itemName}" style="width:30px;height:30px;image-rendering:pixelated"> ` : '') +
+        `<span style="font-size:.82rem;text-transform:capitalize">${itemName.replace(/-/g,' ')}</span>`;
+    } catch {
+      editHeldItem = null;
+      preview.innerHTML = '<span style="color:#f87171;font-size:.78rem">Item not found</span>';
+    }
+  }
+
+  function clearHeldItem() {
+    editHeldItem = null;
+    const inp = document.getElementById('edit-item-input');
+    const pre = document.getElementById('item-preview');
+    if (inp) inp.value = '';
+    if (pre) pre.innerHTML = '';
+  }
+
+  // ---- Shared arrow-key handler for autocomplete lists ----
+  function handleAutoKeydown(e, autoList, slotIdx, type) {
+    const items = autoList.querySelectorAll('.auto-item');
+    if (!autoList.classList.contains('open') && e.key !== 'Enter') return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      let i = [...items].findIndex(el => el.classList.contains('auto-item-active'));
+      i = Math.min(i + 1, items.length - 1);
+      items.forEach((el, j) => el.classList.toggle('auto-item-active', j === i));
+      if (items[i]) items[i].scrollIntoView({ block:'nearest' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      let i = [...items].findIndex(el => el.classList.contains('auto-item-active'));
+      i = Math.max(i - 1, 0);
+      items.forEach((el, j) => el.classList.toggle('auto-item-active', j === i));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const active = autoList.querySelector('.auto-item-active');
+      if (active) active.dispatchEvent(new MouseEvent('mousedown'));
+      else autoList.classList.remove('open');
+    } else if (e.key === 'Escape') {
+      autoList.classList.remove('open');
+    }
+  }
+
   // ---- Preview ----
   async function showPreview(pkData) {
     previewData = pkData;
-    const types = getTypes(pkData);
-    const stats = getStats(pkData);
-    const sprite = getSpriteUrl(pkData);
+    const types    = getTypes(pkData);
+    const stats    = getStats(pkData);
+    const sprite   = getSpriteUrl(pkData);
     const typeHTML = types.map(typeBadge).join(' ');
-
     const statBarsHTML = stats.map(s => renderStatBar(s.name, s.value)).join('');
-
     document.getElementById('preview-area').innerHTML = `
-      <div class="card" style="display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:start">
+      <div class="card preview-grid">
         <div style="text-align:center">
           <img src="${sprite}" alt="${pkData.name}" style="width:160px;height:160px;image-rendering:pixelated">
           <div style="font-size:1.4rem;font-weight:900;text-transform:capitalize;margin:8px 0 6px">${pkData.name}</div>
@@ -124,9 +449,7 @@
           <div style="color:var(--text-muted);font-size:.82rem;margin-bottom:16px">
             #${String(pkData.id).padStart(3,'0')} &nbsp;|&nbsp; ${pkData.height/10}m &nbsp;|&nbsp; ${pkData.weight/10}kg
           </div>
-          <button class="btn btn-primary" style="width:100%" onclick="addToTeam('${pkData.name}', 50)">
-            + Add to Team
-          </button>
+          <button class="btn btn-primary" style="width:100%" onclick="addToTeam('${pkData.name}', 50)">+ Add to Team</button>
         </div>
         <div>
           <div class="section-title" style="margin-top:0">Base Stats</div>
@@ -135,102 +458,74 @@
       </div>`;
   }
 
-  // ---- Autocomplete ----
+  // ---- Pokemon search autocomplete ----
   const searchInput = document.getElementById('search-input');
   const autoList    = document.getElementById('auto-list');
-
-  // Store {name, id} so we can build correct sprite URLs (sprites use numeric ID, not name)
   let allPokemon = [];
+  let activeIdx  = -1;
+
   fetchPokemonList().then(list => {
     allPokemon = list.map(p => ({
       name: p.name,
-      id: p.url.split('/').filter(Boolean).pop()   // extract dex ID from URL
+      id: p.url.split('/').filter(Boolean).pop()
     }));
   });
-
-  let activeIdx = -1;
 
   function buildSuggestions(q) {
     autoList.innerHTML = '';
     activeIdx = -1;
-    if (!q || q.length < 1) { autoList.classList.remove('open'); return; }
-
-    // startsWith matches first (more relevant), then contains matches after
+    if (!q) { autoList.classList.remove('open'); return; }
     const starts   = allPokemon.filter(p => p.name.startsWith(q));
     const contains = allPokemon.filter(p => !p.name.startsWith(q) && p.name.includes(q));
     const matches  = [...starts, ...contains].slice(0, 14);
-
-    if (matches.length === 0) { autoList.classList.remove('open'); return; }
-
+    if (!matches.length) { autoList.classList.remove('open'); return; }
     matches.forEach(({ name, id }) => {
       const item = document.createElement('div');
       item.className = 'auto-item';
-
-      // Highlight matched portion
-      const idx = name.indexOf(q);
-      const highlighted = idx >= 0
-        ? name.slice(0, idx) +
-          `<strong style="color:var(--yellow)">${name.slice(idx, idx + q.length)}</strong>` +
-          name.slice(idx + q.length)
+      const idx2 = name.indexOf(q);
+      const hl = idx2 >= 0
+        ? name.slice(0,idx2) + `<strong style="color:var(--yellow)">${name.slice(idx2,idx2+q.length)}</strong>` + name.slice(idx2+q.length)
         : name;
-
       item.innerHTML = `
         <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png"
           onerror="this.style.display='none'" alt="${name}" loading="lazy">
-        <span style="text-transform:capitalize">${highlighted}</span>`;
-
+        <span style="text-transform:capitalize">${hl}</span>`;
       item.addEventListener('mousedown', e => {
-        // mousedown fires before blur, so we can set the value before the list closes
         e.preventDefault();
         searchInput.value = name;
         autoList.classList.remove('open');
-        fetchPokemon(name).then(showPreview).catch(() =>
-          showAlert(`Could not load ${name}`, 'warn'));
+        fetchPokemon(name).then(showPreview).catch(() => showAlert(`Could not load ${name}`, 'warn'));
       });
       autoList.appendChild(item);
     });
     autoList.classList.add('open');
   }
 
-  searchInput.addEventListener('input', () => {
-    buildSuggestions(searchInput.value.trim().toLowerCase());
-  });
-
+  searchInput.addEventListener('input', () => buildSuggestions(searchInput.value.trim().toLowerCase()));
   searchInput.addEventListener('keydown', e => {
     const items = autoList.querySelectorAll('.auto-item');
-
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      activeIdx = Math.min(activeIdx + 1, items.length - 1);
-      items.forEach((el, i) => el.classList.toggle('auto-item-active', i === activeIdx));
-      if (items[activeIdx]) items[activeIdx].scrollIntoView({ block: 'nearest' });
+      activeIdx = Math.min(activeIdx+1, items.length-1);
+      items.forEach((el,i) => el.classList.toggle('auto-item-active', i === activeIdx));
+      if (items[activeIdx]) items[activeIdx].scrollIntoView({ block:'nearest' });
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      activeIdx = Math.max(activeIdx - 1, -1);
-      items.forEach((el, i) => el.classList.toggle('auto-item-active', i === activeIdx));
+      activeIdx = Math.max(activeIdx-1, -1);
+      items.forEach((el,i) => el.classList.toggle('auto-item-active', i === activeIdx));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (activeIdx >= 0 && items[activeIdx]) {
-        items[activeIdx].dispatchEvent(new MouseEvent('mousedown'));
-      } else {
+      if (activeIdx >= 0 && items[activeIdx]) items[activeIdx].dispatchEvent(new MouseEvent('mousedown'));
+      else {
         const q = searchInput.value.trim().toLowerCase();
         autoList.classList.remove('open');
-        if (q) fetchPokemon(q).then(showPreview).catch(() =>
-          showAlert(`Pokemon "${q}" not found.`, 'warn'));
+        if (q) fetchPokemon(q).then(showPreview).catch(() => showAlert(`Pokemon "${q}" not found.`, 'warn'));
       }
-    } else if (e.key === 'Escape') {
-      autoList.classList.remove('open');
-    }
+    } else if (e.key === 'Escape') autoList.classList.remove('open');
   });
-
-  searchInput.addEventListener('blur', () => {
-    // Small delay so mousedown on an item can fire first
-    setTimeout(() => autoList.classList.remove('open'), 150);
-  });
-
+  searchInput.addEventListener('blur', () => setTimeout(() => autoList.classList.remove('open'), 150));
   document.addEventListener('click', e => {
-    if (!searchInput.contains(e.target) && !autoList.contains(e.target))
-      autoList.classList.remove('open');
+    if (!searchInput.contains(e.target) && !autoList.contains(e.target)) autoList.classList.remove('open');
   });
 
   renderTeam();

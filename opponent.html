@@ -3,14 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pick Opponent – PokeTeam</title>
+  <title>Pick Opponent – PokeMatchup</title>
+  <link rel="icon" type="image/png" href="PokeMatchup.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <nav>
   <div class="nav-inner">
-    <a class="nav-logo" href="index.html">&#9670; PokeTeam</a>
+    <a class="nav-logo" href="index.html"><img src="PokeMatchup.png" alt="PokeMatchup" class="nav-logo-img"></a>
+    <button class="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
     <ul class="nav-links">
       <li><a href="index.html">Home</a></li>
       <li><a href="teambuilder.html">Team Builder</a></li>
@@ -236,6 +238,38 @@
     await renderOppPreview(opp);
   }
 
+  // Render a detailed card for an opponent's Pokemon showing abilities + estimated moves
+  function renderOpponentPkCard(pkData, level) {
+    const types    = getTypes(pkData);
+    const sprite   = getSpriteUrl(pkData);
+    const typeHTML = types.map(typeBadge).join(' ');
+
+    const abilities = pkData.abilities
+      .map(a => `<span style="text-transform:capitalize">${a.ability.name.replace(/-/g,' ')}${a.is_hidden ? ' <em style="color:var(--text-muted)">(H)</em>' : ''}</span>`)
+      .join(', ');
+
+    const moves = getLevelUpMoves(pkData, level);
+    const movesHTML = moves.length > 0
+      ? moves.map(m => `<div style="font-size:.65rem;text-transform:capitalize;color:var(--text)">${m.replace(/-/g,' ')}</div>`).join('')
+      : '<div style="font-size:.65rem;color:var(--text-muted)">—</div>';
+
+    return `
+      <div class="pokemon-card filled" style="text-align:center">
+        <img src="${sprite}" alt="${pkData.name}" loading="lazy">
+        <div class="pkmn-name">${pkData.name}</div>
+        <div class="pkmn-level">Lv. ${level}</div>
+        <div class="types" style="margin-bottom:7px">${typeHTML}</div>
+        <div style="border-top:1px solid var(--border);padding-top:7px;text-align:left">
+          <div style="font-size:.62rem;font-weight:800;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px">Abilities</div>
+          <div style="font-size:.7rem;color:var(--text);line-height:1.5">${abilities}</div>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:7px;margin-top:7px;text-align:left">
+          <div style="font-size:.62rem;font-weight:800;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px">Est. Moves (Lv.≤${level})</div>
+          ${movesHTML}
+        </div>
+      </div>`;
+  }
+
   async function renderOppPreview(opp) {
     const preview = document.getElementById('opp-preview');
     preview.style.display = 'block';
@@ -247,7 +281,7 @@
     const cardsHTML = opp.team.map((p, i) => {
       const res = fetched[i];
       return res.status === 'fulfilled'
-        ? renderPokemonCard(res.value, p.level, false)
+        ? renderOpponentPkCard(res.value, p.level)
         : `<div class="team-slot"><span class="empty-text">${p.name}<br>Lv.${p.level}</span></div>`;
     }).join('');
 
@@ -272,8 +306,9 @@
         </div>
         <div class="section-title" style="margin-top:0;margin-bottom:12px">
           Team (${opp.team.length} Pokémon)
+          <span style="font-size:.72rem;font-weight:400;color:var(--text-muted);margin-left:10px">&#9654; Abilities &amp; estimated level-up moves shown</span>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px">
           ${cardsHTML}
         </div>
         <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">

@@ -15,6 +15,34 @@ async function fetchPokemon(nameOrId) {
   return data;
 }
 
+async function fetchMove(nameOrId) {
+  const key = `__move__${String(nameOrId).toLowerCase()}`;
+  if (CACHE[key]) return CACHE[key];
+  const res = await fetch(`${API}/move/${String(nameOrId).toLowerCase()}`);
+  if (!res.ok) throw new Error(`Move not found: ${nameOrId}`);
+  const data = await res.json();
+  CACHE[key] = data;
+  return data;
+}
+
+async function fetchItemList(limit = 2000) {
+  if (CACHE['__items__']) return CACHE['__items__'];
+  const res = await fetch(`${API}/item?limit=${limit}`);
+  const data = await res.json();
+  CACHE['__items__'] = data.results.map(i => i.name);
+  return CACHE['__items__'];
+}
+
+async function fetchItem(nameOrId) {
+  const key = `__item__${String(nameOrId).toLowerCase()}`;
+  if (CACHE[key]) return CACHE[key];
+  const res = await fetch(`${API}/item/${String(nameOrId).toLowerCase()}`);
+  if (!res.ok) throw new Error(`Item not found: ${nameOrId}`);
+  const data = await res.json();
+  CACHE[key] = data;
+  return data;
+}
+
 async function fetchPokemonList(limit = 1025) {
   if (CACHE['__list__']) return CACHE['__list__'];
   const res = await fetch(`${API}/pokemon?limit=${limit}`);
@@ -129,4 +157,36 @@ function renderPokemonCard(pkData, level, removable = false, idx = null) {
     </div>`;
 }
 
-document.addEventListener('DOMContentLoaded', setActiveNav);
+/**
+ * Return up to 4 level-up moves the Pokemon would know at the given level.
+ * Takes the highest-level move learned at or below `level` across any version group.
+ */
+function getLevelUpMoves(pkData, level) {
+  const best = new Map(); // moveName → highest level_learned_at ≤ level
+  for (const entry of pkData.moves) {
+    const name = entry.move.name;
+    for (const vg of entry.version_group_details) {
+      const ll = vg.level_learned_at;
+      if (vg.move_learn_method.name === 'level-up' && ll > 0 && ll <= level) {
+        if (!best.has(name) || ll > best.get(name)) best.set(name, ll);
+      }
+    }
+  }
+  return [...best.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([name]) => name);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setActiveNav();
+  const hamburger = document.querySelector('.hamburger');
+  const navLinks  = document.querySelector('.nav-links');
+  if (hamburger && navLinks) {
+    hamburger.addEventListener('click', () => navLinks.classList.toggle('open'));
+    // Close menu when a link is tapped
+    navLinks.addEventListener('click', e => {
+      if (e.target.tagName === 'A') navLinks.classList.remove('open');
+    });
+  }
+});

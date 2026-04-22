@@ -19,7 +19,8 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--darker)
 /* NAV */
 nav { background: var(--red); position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
 .nav-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; padding: 0 20px; flex-wrap: wrap; }
-.nav-logo { font-size: 1.4rem; font-weight: 900; color: var(--yellow); text-decoration: none; padding: 14px 0; margin-right: 24px; text-shadow: 1px 1px 3px rgba(0,0,0,.5); }
+.nav-logo { text-decoration: none; padding: 8px 0; margin-right: 24px; display: flex; align-items: center; }
+.nav-logo-img { height: 40px; width: auto; object-fit: contain; display: block; }
 .nav-links { display: flex; list-style: none; }
 .nav-links a { color: #fff; text-decoration: none; padding: 16px 16px; display: block; font-weight: 500; transition: background .2s; font-size: .92rem; }
 .nav-links a:hover, .nav-links a.active { background: rgba(0,0,0,.25); }
@@ -139,13 +140,14 @@ nav { background: var(--red); position: sticky; top: 0; z-index: 100; box-shadow
 .pill-yellow { background: rgba(251,191,36,.18); color: #fbbf24; }
 
 /* HERO (home) */
-.hero { text-align: center; padding: 70px 20px 50px; }
+.hero { text-align: center; padding: 30px 20px 24px; }
 .hero h1 { font-size: 3.2rem; font-weight: 900; color: var(--yellow); text-shadow: 2px 2px 10px rgba(0,0,0,.5); margin-bottom: 14px; }
+.hero-logo { max-width: 320px; width: 65%; height: auto; object-fit: contain; margin: 0 auto 16px; display: block; }
 .hero p { font-size: 1.15rem; color: var(--text-muted); max-width: 580px; margin: 0 auto 28px; line-height: 1.6; }
 .hero-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-top: 50px; }
 .feature-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
-.feature-icon { font-size: 2.4rem; margin-bottom: 10px; }
+.feature-icon { font-size: 2.4rem; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; }
 .feature-card h3 { color: var(--yellow); margin-bottom: 7px; font-size: 1.05rem; }
 .feature-card p { color: var(--text-muted); font-size: .86rem; line-height: 1.6; }
 
@@ -188,7 +190,71 @@ nav { background: var(--red); position: sticky; top: 0; z-index: 100; box-shadow
 .opp-card[data-cat="villain"].selected  { border-color: #f87171; }
 .opp-card[data-cat="elite4"].selected   { border-color: #a78bfa; }
 
+/* EDIT PANEL */
+.edit-label { display: block; font-size: .72rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; letter-spacing: .4px; }
+.edit-grid { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+.edit-grid > div { display: flex; flex-direction: column; }
+.moves-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-top: 8px; }
+.move-slot { position: relative; }
+.move-slot .search-input { padding: 9px 13px; font-size: .88rem; }
+.move-type-display { margin-top: 5px; min-height: 24px; display: flex; align-items: center; }
+.pokemon-card .pkmn-ability { font-size: .68rem; color: var(--text-muted); margin-top: 4px; text-transform: capitalize; }
+.pokemon-card .pkmn-moves { display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; margin-top: 5px; }
+.edit-select { width: 100%; padding: 9px 13px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: .9rem; outline: none; cursor: pointer; }
+.edit-select:focus { border-color: var(--red); }
+
+/* POKEMON PREVIEW GRID (teambuilder search result) */
+.preview-grid { display: grid; grid-template-columns: 200px 1fr; gap: 24px; align-items: start; }
+
+/* HAMBURGER */
+.hamburger { display: none; background: none; border: none; cursor: pointer; padding: 10px; margin-left: auto; flex-shrink: 0; }
+.hamburger span { display: block; width: 24px; height: 2px; background: #fff; margin: 5px 0; border-radius: 2px; transition: all .2s; }
+
 /* RESPONSIVE */
-@media (max-width: 900px) { .team-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 700px) { .matchup-grid { grid-template-columns: 1fr; } .vs-header { grid-template-columns: 1fr; } .vs-text { display: none; } .hero h1 { font-size: 2.2rem; } }
-@media (max-width: 480px) { .team-grid { grid-template-columns: repeat(2, 1fr); } .nav-links a { padding: 14px 10px; font-size: .82rem; } }
+@media (max-width: 900px) {
+  .team-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 700px) {
+  .matchup-grid { grid-template-columns: 1fr; }
+  .vs-header { grid-template-columns: 1fr; }
+  .vs-text { display: none; }
+  .hero h1 { font-size: 2.2rem; }
+  .container { padding: 20px 14px; }
+  .card { padding: 16px; }
+  .page-title { font-size: 1.5rem; }
+}
+
+@media (max-width: 640px) {
+  /* Hamburger nav */
+  .hamburger { display: block; }
+  .nav-links {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    background: var(--dark-red);
+    order: 3;
+  }
+  .nav-links.open { display: flex; }
+  .nav-links li { width: 100%; }
+  .nav-links a { padding: 13px 20px; font-size: .95rem; border-top: 1px solid rgba(255,255,255,.1); }
+  .nav-inner { flex-wrap: wrap; }
+
+  /* Preview card stacks vertically */
+  .preview-grid { grid-template-columns: 1fr; }
+  .preview-grid > div:first-child img { width: 120px; height: 120px; }
+
+  /* Team grid */
+  .team-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Edit panel held-item row */
+  .edit-grid { flex-direction: column; gap: 14px; }
+  .edit-select { min-width: unset !important; }
+}
+
+@media (max-width: 400px) {
+  .team-grid { grid-template-columns: repeat(2, 1fr); }
+  .hero-logo { width: 70%; }
+  .gen-grid { grid-template-columns: repeat(2, 1fr); }
+  .opponents-grid { grid-template-columns: repeat(2, 1fr); }
+}

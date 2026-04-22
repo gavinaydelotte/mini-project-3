@@ -26,6 +26,26 @@ const TYPE_CHART = {
 const ALL_TYPES = ['normal','fire','water','electric','grass','ice','fighting','poison',
   'ground','flying','psychic','bug','rock','ghost','dragon','dark','steel','fairy'];
 
+// Ability modifiers for type matchups (affects incoming damage to the Pokemon with this ability)
+const ABILITY_TYPE_MODS = {
+  'levitate':        { immunities: ['ground'] },
+  'flash-fire':      { immunities: ['fire'] },
+  'water-absorb':    { immunities: ['water'] },
+  'dry-skin':        { immunities: ['water'], extra_weak: ['fire'] },
+  'storm-drain':     { immunities: ['water'] },
+  'volt-absorb':     { immunities: ['electric'] },
+  'lightning-rod':   { immunities: ['electric'] },
+  'motor-drive':     { immunities: ['electric'] },
+  'sap-sipper':      { immunities: ['grass'] },
+  'earth-eater':     { immunities: ['ground'] },
+  'well-baked-body': { immunities: ['fire'] },
+  'purifying-salt':  { immunities: ['ghost'] },
+  'wonder-guard':    { wonder_guard: true },
+  'thick-fat':       { half: ['fire', 'ice'] },
+  'heatproof':       { half: ['fire'] },
+  'fluffy':          { half: ['contact'], extra_weak: ['fire'] }, // simplified: just halve fire for now
+};
+
 /**
  * Get effectiveness multiplier for one attacking type vs one defending type.
  */
@@ -38,88 +58,167 @@ function getEff(attackType, defendType) {
 
 /**
  * Get combined effectiveness of one attacking type vs a multi-type defender.
- * e.g. getEffVsTypes('electric', ['water','flying']) => 4x
  */
 function getEffVsTypes(attackType, defenderTypes) {
   return defenderTypes.reduce((mult, dt) => mult * getEff(attackType, dt), 1);
 }
 
 /**
- * Best offensive multiplier for an attacker (using own types as move types) vs a defender.
+ * Apply a defender's ability modifier to an incoming attack type.
+ * Returns the adjusted multiplier.
  */
-function bestOffense(attackerTypes, defenderTypes) {
-  const mults = attackerTypes.map(at => getEffVsTypes(at, defenderTypes));
-  return Math.max(...mults);
+function applyAbilityMod(abilityName, attackType, baseMult) {
+  if (!abilityName) return baseMult;
+  const mod = ABILITY_TYPE_MODS[abilityName.toLowerCase()];
+  if (!mod) return baseMult;
+
+  if (mod.wonder_guard) {
+    // Wonder Guard: only super-effective moves land
+    return baseMult > 1 ? baseMult : 0;
+  }
+  if (mod.immunities && mod.immunities.includes(attackType)) return 0;
+  if (mod.extra_weak && mod.extra_weak.includes(attackType)) return baseMult * 2;
+  if (mod.half && mod.half.includes(attackType)) return baseMult * 0.5;
+  return baseMult;
 }
 
 /**
- * Worst (highest) multiplier incoming against a defender from any attack type.
- * Tells you how vulnerable the Pokemon is.
+ * Get combined effectiveness of one attacking type vs a multi-type defender,
+ * with the defender's ability applied.
  */
-function worstDefense(defenderTypes) {
-  const mults = ALL_TYPES.map(at => getEffVsTypes(at, defenderTypes));
-  return Math.max(...mults);
+function getEffVsTypesWithAbility(attackType, defenderTypes, defenderAbility) {
+  const mult = getEffVsTypes(attackType, defenderTypes);
+  return applyAbilityMod(defenderAbility, attackType, mult);
+}
+
+// Held-item modifiers (affect incoming damage to the holder, like ability mods)
+const ITEM_TYPE_MODS = {
+  'air-balloon': { immunities: ['ground'] },
+};
+
+/**
+ * Apply a defender's held-item modifier to an incoming attack type.
+ */
+function applyItemMod(heldItem, attackType, baseMult) {
+  if (!heldItem) return baseMult;
+  const mod = ITEM_TYPE_MODS[heldItem.toLowerCase()];
+  if (!mod) return baseMult;
+  if (mod.immunities && mod.immunities.includes(attackType)) return 0;
+  return baseMult;
+}
+
+/**
+ * Best offensive multiplier from offensiveTypes vs a defender,
+ * considering the defender's ability and held item.
+ * Returns { mult, bestType } — the best multiplier and which type achieved it.
+ */
+function bestOffenseDetail(offensiveTypes, defenderTypes, defenderAbility, defenderItem) {
+  let bestMult = 0;
+  let bestType = offensiveTypes[0] || 'normal';
+  for (const at of offensiveTypes) {
+    let m = getEffVsTypesWithAbility(at, defenderTypes, defenderAbility);
+    m = applyItemMod(defenderItem, at, m);
+    if (m > bestMult) {
+      bestMult = m;
+      bestType = at;
+    }
+  }
+  return { mult: bestMult, bestType };
+}
+
+/**
+ * Best offensive multiplier (simple version — no ability, returns just a number).
+ */
+function bestOffense(attackerTypes, defenderTypes) {
+  return bestOffenseDetail(attackerTypes, defenderTypes, null).mult;
 }
 
 /**
  * Analyse a full team matchup.
- * myTeam / oppTeam: array of { name, types: ['fire','flying'], level }
+ *
+ * myTeam entries:  { name, types, level, offensiveTypes?, ability?, heldItem? }
+ *   offensiveTypes: move types to use for offense (if null/empty, falls back to types)
+ *   ability:   slug string e.g. 'levitate'    — applied as defensive modifier
+ *   heldItem:  slug string e.g. 'air-balloon' — applied as defensive modifier
+ *
+ * oppTeam entries: { name, types, level, ability?, heldItem? }
+ *
  * Returns analysis object.
  */
 function analyseMatchup(myTeam, oppTeam) {
-  // Offensive: for each of my Pokemon, what's the best it can hit each opponent?
-  const offRows = myTeam.map(me => ({
-    name: me.name,
-    types: me.types,
-    vs: oppTeam.map(opp => ({
-      name: opp.name,
-      types: opp.types,
-      mult: bestOffense(me.types, opp.types)
-    }))
-  }));
+  // Helper: resolve offensive types for a team member
+  const resolveOff = me =>
+    (me.offensiveTypes && me.offensiveTypes.length > 0) ? me.offensiveTypes : me.types;
 
-  // Defensive: for each opponent Pokemon, what's the best it can hit each of mine?
+  // Offensive rows: for each of my Pokemon, how well it hits each opponent
+  const offRows = myTeam.map(me => {
+    const offTypes = resolveOff(me);
+    return {
+      name: me.name,
+      types: me.types,
+      offensiveTypes: offTypes,
+      usingMoves: !!(me.offensiveTypes && me.offensiveTypes.length > 0),
+      vs: oppTeam.map(opp => {
+        const { mult, bestType } = bestOffenseDetail(offTypes, opp.types, opp.ability || null, opp.heldItem || null);
+        return { name: opp.name, types: opp.types, mult, bestType };
+      })
+    };
+  });
+
+  // Defensive rows: for each opponent Pokemon, how well it hits each of mine
   const defRows = oppTeam.map(opp => ({
     name: opp.name,
     types: opp.types,
-    vs: myTeam.map(me => ({
-      name: me.name,
-      types: me.types,
-      mult: bestOffense(opp.types, me.types)
-    }))
+    vs: myTeam.map(me => {
+      const { mult } = bestOffenseDetail(opp.types, me.types, me.ability || null, me.heldItem || null);
+      return { name: me.name, types: me.types, mult };
+    })
   }));
 
   // % of opponent Pokemon I can hit SE (>=2x)
   const oppCanHitSE = oppTeam.map(opp => {
-    const best = Math.max(...myTeam.map(me => bestOffense(me.types, opp.types)));
+    const best = Math.max(...myTeam.map(me => {
+      const offTypes = resolveOff(me);
+      return bestOffenseDetail(offTypes, opp.types, opp.ability || null, opp.heldItem || null).mult;
+    }));
     return best >= 2;
   });
   const offCoverage = oppTeam.length > 0
     ? (oppCanHitSE.filter(Boolean).length / oppTeam.length) * 100 : 0;
 
-  // % of my Pokemon that are NOT hit SE by any opponent (i.e. opponent best <= 1)
+  // % of my Pokemon that are NOT hit SE by any opponent (opponent best <= 1x)
   const myNotWeak = myTeam.map(me => {
-    const worst = Math.max(...oppTeam.map(opp => bestOffense(opp.types, me.types)));
+    const worst = Math.max(...oppTeam.map(opp =>
+      bestOffenseDetail(opp.types, me.types, me.ability || null, me.heldItem || null).mult
+    ));
     return worst < 2;
   });
   const defCoverage = myTeam.length > 0
     ? (myNotWeak.filter(Boolean).length / myTeam.length) * 100 : 0;
 
   // Overall score 0–100
-  const score = Math.round((offCoverage * 0.55 + defCoverage * 0.45));
+  const score = Math.round(offCoverage * 0.55 + defCoverage * 0.45);
 
-  // Types on opponent team I struggle against
+  // Types on opponent team my team is broadly weak to
   const oppAllTypes = [...new Set(oppTeam.flatMap(p => p.types))];
   const weakTo = oppAllTypes.filter(t => {
-    // How many of my Pokemon are weak to this?
-    const weakCount = myTeam.filter(me => getEffVsTypes(t, me.types) >= 2).length;
+    const weakCount = myTeam.filter(me => {
+      let eff = applyAbilityMod(me.ability || null, t, getEffVsTypes(t, me.types));
+      eff = applyItemMod(me.heldItem || null, t, eff);
+      return eff >= 2;
+    }).length;
     return weakCount > myTeam.length / 2;
   });
 
-  // Types I'm missing offensively (opponent types not hit SE by anyone on my team)
-  const notCovered = oppAllTypes.filter(t => {
-    return !myTeam.some(me => me.types.some(mt => getEff(mt, t) >= 2));
-  });
+  // Types I'm missing super-effective coverage against
+  const notCovered = oppAllTypes.filter(t =>
+    !myTeam.some(me => {
+      const offTypes = resolveOff(me);
+      return offTypes.some(mt => getEff(mt, t) >= 2);
+    })
+  );
 
-  return { offCoverage, defCoverage, score, offRows, defRows, weakTo, notCovered };
+  const usingMoves = myTeam.some(me => me.offensiveTypes && me.offensiveTypes.length > 0);
+
+  return { offCoverage, defCoverage, score, offRows, defRows, weakTo, notCovered, usingMoves };
 }
