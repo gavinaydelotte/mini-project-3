@@ -97,7 +97,7 @@ async function init() {
     .filter(Boolean);
 
   if (myTeam.length === 0 || oppTeam.length === 0) {
-    main.innerHTML = `<div class="alert alert-danger">Could not load Pokemon data. Check your internet connection.</div>`;
+    main.innerHTML = `<div class="alert alert-danger">Sorry, Pokédex Entry Not Found</div>`;
     return;
   }
 

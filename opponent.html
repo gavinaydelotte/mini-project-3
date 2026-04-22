@@ -282,7 +282,7 @@
       const res = fetched[i];
       return res.status === 'fulfilled'
         ? renderOpponentPkCard(res.value, p.level)
-        : `<div class="team-slot"><span class="empty-text">${p.name}<br>Lv.${p.level}</span></div>`;
+        : `<div class="team-slot"><span class="empty-text" style="font-size:.7rem">Sorry, Pokédex Entry Not Found</span></div>`;
     }).join('');
 
     const typeHTML    = opp.specialType !== 'mixed' ? typeBadge(opp.specialType) : '';

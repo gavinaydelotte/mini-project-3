@@ -69,7 +69,7 @@
         fetchPokemon(team[i].name).then(d => {
           slot.innerHTML = renderTeamSlotCard(d, team[i], i);
         }).catch(() => {
-          slot.innerHTML = `<span class="empty-text">${team[i].name}</span>`;
+          slot.innerHTML = `<span class="empty-text" style="font-size:.7rem">Sorry, Pokédex Entry Not Found</span>`;
         });
       } else {
         slot.innerHTML = '<span class="empty-text">Empty</span>';
@@ -162,7 +162,7 @@
     let pkData;
     try { pkData = await fetchPokemon(member.name); }
     catch {
-      panel.innerHTML = `<div class="alert alert-danger">Could not load ${member.name} data.</div>`;
+      panel.innerHTML = `<div class="alert alert-danger">Sorry, Pokédex Entry Not Found</div>`;
       return;
     }
 
@@ -337,7 +337,7 @@
       editMoves[slotIdx] = { name: moveName, type: moveType };
       typeDiv.innerHTML  = typeBadge(moveType);
     } catch {
-      typeDiv.innerHTML  = '<span style="color:#f87171;font-size:.78rem">Not found</span>';
+      typeDiv.innerHTML  = '<span style="color:#f87171;font-size:.78rem">Sorry, Pokédex Entry Not Found</span>';
       editMoves[slotIdx] = null;
     }
   }
@@ -395,7 +395,7 @@
         `<span style="font-size:.82rem;text-transform:capitalize">${itemName.replace(/-/g,' ')}</span>`;
     } catch {
       editHeldItem = null;
-      preview.innerHTML = '<span style="color:#f87171;font-size:.78rem">Item not found</span>';
+      preview.innerHTML = '<span style="color:#f87171;font-size:.78rem">Sorry, Pokédex Entry Not Found</span>';
     }
   }
 
@@ -494,7 +494,7 @@
         e.preventDefault();
         searchInput.value = name;
         autoList.classList.remove('open');
-        fetchPokemon(name).then(showPreview).catch(() => showAlert(`Could not load ${name}`, 'warn'));
+        fetchPokemon(name).then(showPreview).catch(() => showAlert('Sorry, Pokédex Entry Not Found', 'warn'));
       });
       autoList.appendChild(item);
     });
@@ -519,7 +519,7 @@
       else {
         const q = searchInput.value.trim().toLowerCase();
         autoList.classList.remove('open');
-        if (q) fetchPokemon(q).then(showPreview).catch(() => showAlert(`Pokemon "${q}" not found.`, 'warn'));
+        if (q) fetchPokemon(q).then(showPreview).catch(() => showAlert('Sorry, Pokédex Entry Not Found', 'warn'));
       }
     } else if (e.key === 'Escape') autoList.classList.remove('open');
   });
